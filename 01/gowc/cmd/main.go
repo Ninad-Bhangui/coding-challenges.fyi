@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -51,62 +52,65 @@ func main() {
 
 func cliEntryPoint(cliOptions *CliOptions, output io.Writer) error {
 	cliOptions.noOptionsSetDefault()
+	if len(cliOptions.fileNames) == 0 {
+		//Stdin mode
+		cliForSingleFile(cliOptions, os.Stdin, output)
+        fmt.Fprintf(output, " \n")
+		return nil
+	}
 	for i := range cliOptions.fileNames {
-		if cliOptions.shouldGetByteCount {
-			byteCount, err := getByteCountOfFile(cliOptions.fileNames[i])
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(output, "%d %s\n", byteCount, cliOptions.fileNames[i])
+		file, err := os.Open(cliOptions.fileNames[i])
+		if err != nil {
 			return nil
-		} else if cliOptions.shouldGetLineCount {
-			lineCount, err := getLineCountOfFile(cliOptions.fileNames[i])
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(output, "%d %s\n", lineCount, cliOptions.fileNames[i])
-		} else if cliOptions.shouldGetWordCount {
-			lineCount, err := getWordCountOfFile(cliOptions.fileNames[i])
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(output, "%d %s\n", lineCount, cliOptions.fileNames[i])
-		} else if cliOptions.shouldGetCharCount {
-			lineCount, err := getCharCountOfFile(cliOptions.fileNames[i])
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(output, "%d %s\n", lineCount, cliOptions.fileNames[i])
 		}
 
+		err = cliForSingleFile(cliOptions, file, output)
+		fmt.Fprintf(output, " %s\n", cliOptions.fileNames[i])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func cliForSingleFile(cliOptions *CliOptions, input io.Reader, output io.Writer) error {
+	var byteCount int
+	var lineCount int
+	var wordCount int
+	var charCount int
+	var err error
+	var data []byte
+	var reader io.Reader
+
+	//TODO: BUFFERING IN MEMORY. OPTIMIZE. DOING THIS BECUASE input gets reset after one option is executed
+	data, err = io.ReadAll(input)
+	reader = bytes.NewReader(data)
+	if cliOptions.shouldGetLineCount {
+		lineCount, err = getSplitCount(reader, bufio.ScanLines)
+		fmt.Fprintf(output, " %d", lineCount)
+	}
+	reader = bytes.NewReader(data)
+	if cliOptions.shouldGetWordCount {
+		wordCount, err = getSplitCount(reader, bufio.ScanWords)
+		fmt.Fprintf(output, " %d", wordCount)
+	}
+	reader = bytes.NewReader(data)
+	if cliOptions.shouldGetCharCount {
+		charCount, err = getSplitCount(reader, bufio.ScanRunes)
+		fmt.Fprintf(output, " %d", charCount)
+	}
+	reader = bytes.NewReader(data)
+	if cliOptions.shouldGetByteCount {
+		byteCount, err = getSplitCount(reader, bufio.ScanBytes)
+		fmt.Fprintf(output, " %d", byteCount)
+	}
+	if err != nil {
+		return err
 	}
 	return nil
 
 }
 
-func getByteCountOfFile(fileName string) (int, error) {
-	return getSplitCountFile(fileName, bufio.ScanBytes)
-}
-
-func getLineCountOfFile(fileName string) (int, error) {
-	return getSplitCountFile(fileName, bufio.ScanLines)
-}
-
-func getWordCountOfFile(fileName string) (int, error) {
-	return getSplitCountFile(fileName, bufio.ScanWords)
-}
-
-func getCharCountOfFile(fileName string) (int, error) {
-	return getSplitCountFile(fileName, bufio.ScanRunes)
-}
-
-func getSplitCountFile(fileName string, splitFunc bufio.SplitFunc) (int, error) {
-	file, err := os.Open(fileName)
-	if err != nil {
-		return 0, nil
-	}
-	return getSplitCount(file, splitFunc)
-}
 func getSplitCount(input io.Reader, splitFunc bufio.SplitFunc) (int, error) {
 	count := 0
 	scanner := bufio.NewScanner(input)
