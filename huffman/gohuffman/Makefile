@@ -6,5 +6,5 @@ test:
 	go test ./...
 runsample:
 	make build
-	./huffman --filepath ./samples/gutenberg.org_cache_epub_132_pg132.txt
+	./huffman --filepath ./samples/test.txt --outputpath output.bin
 
