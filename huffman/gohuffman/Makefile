@@ -1,10 +1,10 @@
 build:
-	go build -o huffman ./cmd
+	go build -o huffman-cli ./cmd
 run:
-	./huffman
+	./huffman-cli
 test:
 	go test ./...
 runsample:
 	make build
-	./huffman --filepath ./samples/test.txt --outputpath output.bin
+	./huffman-cli --filepath ./samples/test.txt --outputpath output.bin
 

@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/Ninad-Bhangui/gohuffman/huffman"
 )
 
 func TestCalculateFreq(t *testing.T) {
 	input := `aaaee1`
 
-	output := calculateFreq(strings.NewReader(input))
+	output := huffman.CalculateFreq(strings.NewReader(input))
 	assert.Equal(t, 2, output['e'])
 	assert.Equal(t, 3, output['a'])
 	assert.Equal(t, 1, output['1'])
@@ -22,13 +23,13 @@ func TestCalculateFreq(t *testing.T) {
 func TestGetEncodingMap(t *testing.T) {
 	input := `aaaee1`
 
-	output := calculateFreq(strings.NewReader(input))
-	tree := createHuffmanTree(output)
-	encoded_map := tree.BuildEncodingMap()
-	assert.Equal(t, 3, len(encoded_map))
-	assert.Equal(t, "0", encoded_map['a'])
-	assert.Equal(t, "11", encoded_map['e'])
-	assert.Equal(t, "10", encoded_map['1'])
+	output := huffman.CalculateFreq(strings.NewReader(input))
+	tree := huffman.CreateTree(output)
+	encodedMap := tree.BuildEncodingMap()
+	assert.Equal(t, 3, len(encodedMap))
+	assert.Equal(t, "0", encodedMap['a'])
+	assert.Equal(t, "11", encodedMap['e'])
+	assert.Equal(t, "10", encodedMap['1'])
 }
 
 func TestCalculateWithFile(t *testing.T) {
@@ -38,7 +39,7 @@ func TestCalculateWithFile(t *testing.T) {
 		log.Fatal(err)
 	}
 	defer file.Close()
-	output := calculateFreq(file)
+	output := huffman.CalculateFreq(file)
 	assert.Equal(t, 333, output['X'])
 	assert.Equal(t, 223000, output['t'])
 }
