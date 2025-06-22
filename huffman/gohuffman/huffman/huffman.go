@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"encoding/binary"
 	"io"
+	"strconv"
+	"strings"
 
 	"github.com/Ninad-Bhangui/gohuffman/priorityqueue"
 )
@@ -140,16 +142,32 @@ func CreateTree(freqTable FreqTable) Tree {
 func WriteData(reader io.Reader, writer io.Writer, encodedMap map[rune]string) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Split(bufio.ScanRunes)
+
+	var bitBuffer strings.Builder
+
+	// Collect all bits into one string
 	for scanner.Scan() {
 		text := scanner.Text()
 		rune := []rune(text)[0]
 		bitstring := encodedMap[rune]
-		for _, bit := range bitstring {
-			if bit == '0' {
-				writer.Write([]byte{0})
-			} else {
-				writer.Write([]byte{1})
-			}
+		bitBuffer.WriteString(bitstring)
+	}
+
+	allBits := bitBuffer.String()
+
+	// Process 8 bits at a time
+	for i := 0; i < len(allBits); i += 8 {
+		end := i + 8
+		var chunk string
+		if end > len(allBits) {
+			// Pad remaining bits with zeros
+			chunk = allBits[i:] + strings.Repeat("0", 8-(len(allBits)-i))
+		} else {
+			chunk = allBits[i:end]
+		}
+
+		if val, err := strconv.ParseUint(chunk, 2, 8); err == nil {
+			writer.Write([]byte{byte(val)})
 		}
 	}
 }
