@@ -4,9 +4,8 @@ import (
 	"bufio"
 	"encoding/binary"
 	"io"
-	"strconv"
-	"strings"
 
+	"github.com/Ninad-Bhangui/gohuffman/bitwriter"
 	"github.com/Ninad-Bhangui/gohuffman/priorityqueue"
 )
 
@@ -139,35 +138,31 @@ func CreateTree(freqTable FreqTable) Tree {
 	return Tree{Root: pq.Dequeue()}
 }
 
-func WriteData(reader io.Reader, writer io.Writer, encodedMap map[rune]string) {
+func WriteData(reader io.Reader, writer io.Writer, encodedMap map[rune]string) error {
+	// TODO: Optimize using bitwriter
+	bw := bitwriter.NewBitWriter(writer)
 	scanner := bufio.NewScanner(reader)
 	scanner.Split(bufio.ScanRunes)
-
-	var bitBuffer strings.Builder
 
 	// Collect all bits into one string
 	for scanner.Scan() {
 		text := scanner.Text()
-		rune := []rune(text)[0]
-		bitstring := encodedMap[rune]
-		bitBuffer.WriteString(bitstring)
-	}
-
-	allBits := bitBuffer.String()
-
-	// Process 8 bits at a time
-	for i := 0; i < len(allBits); i += 8 {
-		end := i + 8
-		var chunk string
-		if end > len(allBits) {
-			// Pad remaining bits with zeros
-			chunk = allBits[i:] + strings.Repeat("0", 8-(len(allBits)-i))
-		} else {
-			chunk = allBits[i:end]
-		}
-
-		if val, err := strconv.ParseUint(chunk, 2, 8); err == nil {
-			writer.Write([]byte{byte(val)})
+		rune_value := []rune(text)[0]
+		if code, ok := encodedMap[rune_value]; ok {
+			err := bw.WriteBitsFromString(code)
+			if err != nil {
+				return err
+			}
 		}
 	}
+	err := bw.Flush()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func DecodeAndWriteData(reader io.Reader, writer io.Writer, tree Tree) error {
+	//TODO: Implement
+	return nil
 }
