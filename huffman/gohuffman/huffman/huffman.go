@@ -139,7 +139,6 @@ func CreateTree(freqTable FreqTable) Tree {
 }
 
 func WriteData(reader io.Reader, writer io.Writer, encodedMap map[rune]string) error {
-	// TODO: Optimize using bitwriter
 	bw := bitwriter.NewBitWriter(writer)
 	scanner := bufio.NewScanner(reader)
 	scanner.Split(bufio.ScanRunes)
