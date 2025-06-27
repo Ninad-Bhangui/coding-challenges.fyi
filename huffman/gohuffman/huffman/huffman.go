@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"encoding/binary"
 	"io"
+	"unicode/utf8"
 
+	"github.com/Ninad-Bhangui/gohuffman/bitreader"
 	"github.com/Ninad-Bhangui/gohuffman/bitwriter"
 	"github.com/Ninad-Bhangui/gohuffman/priorityqueue"
 )
@@ -163,5 +165,26 @@ func WriteData(reader io.Reader, writer io.Writer, encodedMap map[rune]string) e
 
 func DecodeAndWriteData(reader io.Reader, writer io.Writer, tree Tree) error {
 	//TODO: Implement
-	return nil
+	r := bitreader.NewBitReader(reader)
+	currentNode := tree.Root
+	for {
+		bit, err := r.ReadBit()
+		if err != nil {
+			return err
+		}
+		if currentNode.IsLeaf() {
+			node := currentNode.(*LeafNode)
+			runebyte := make([]byte, utf8.MaxRune)
+			n := utf8.EncodeRune(runebyte, node.Element)
+			writer.Write(runebyte[:n])
+		} else {
+			node := currentNode.(*InternalNode)
+			if bit {
+				currentNode = node.Right
+			} else {
+				currentNode = node.Left
+			}
+		}
+
+	}
 }
