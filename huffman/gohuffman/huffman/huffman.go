@@ -77,9 +77,18 @@ func CalculateFreq(reader io.Reader) FreqTable {
 	return freqTable
 }
 
-func WriteHeader(w io.Writer, freqTable map[rune]int) error {
+func WriteHeader(w io.Writer, freqTable FreqTable) error {
+
 	entryCount := len(freqTable)
+	charCount := 0
+	for _, freq := range freqTable {
+		charCount += freq
+	}
 	err := binary.Write(w, binary.LittleEndian, int32(entryCount))
+	if err != nil {
+		return err
+	}
+	err = binary.Write(w, binary.LittleEndian, int32(charCount))
 	if err != nil {
 		return err
 	}
@@ -96,31 +105,37 @@ func WriteHeader(w io.Writer, freqTable map[rune]int) error {
 	return nil
 }
 
-func ReadHeader(r io.Reader) (map[rune]int, error) {
+func ReadHeader(r io.Reader) (FreqTable, int, error) {
 	entryCount := int32(0)
 	err := binary.Read(r, binary.LittleEndian, &entryCount)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	freqTable := make(map[rune]int, entryCount)
+	charCount := int32(0)
+	err = binary.Read(r, binary.LittleEndian, &charCount)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	freqTable := make(FreqTable, entryCount)
 	for i := 0; i < int(entryCount); i++ {
 		key := int32(0)
 		err := binary.Read(r, binary.LittleEndian, &key)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 
 		freq := int32(0)
 		err = binary.Read(r, binary.LittleEndian, &freq)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 
 		freqTable[rune(key)] = int(freq)
 	}
 
-	return freqTable, nil
+	return freqTable, int(charCount), nil
 }
 
 func CreateTree(freqTable FreqTable) Tree {
@@ -163,21 +178,21 @@ func WriteData(reader io.Reader, writer io.Writer, encodedMap map[rune]string) e
 	return nil
 }
 
-func DecodeAndWriteData(reader io.Reader, writer io.Writer, tree Tree) error {
-	//TODO: Implement
+func DecodeAndWriteData(reader io.Reader, writer io.Writer, tree Tree, charCount int) error {
 	r := bitreader.NewBitReader(reader)
 	currentNode := tree.Root
-	for {
+	decodedCount := 0
+
+	for decodedCount < charCount {
 		bit, err := r.ReadBit()
 		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
 			return err
 		}
-		if currentNode.IsLeaf() {
-			node := currentNode.(*LeafNode)
-			runebyte := make([]byte, utf8.MaxRune)
-			n := utf8.EncodeRune(runebyte, node.Element)
-			writer.Write(runebyte[:n])
-		} else {
+
+		if !currentNode.IsLeaf() {
 			node := currentNode.(*InternalNode)
 			if bit {
 				currentNode = node.Right
@@ -186,5 +201,15 @@ func DecodeAndWriteData(reader io.Reader, writer io.Writer, tree Tree) error {
 			}
 		}
 
+		if currentNode.IsLeaf() {
+			node := currentNode.(*LeafNode)
+			runebyte := make([]byte, utf8.MaxRune)
+			n := utf8.EncodeRune(runebyte, node.Element)
+			writer.Write(runebyte[:n])
+			currentNode = tree.Root
+			decodedCount++
+		}
 	}
+
+	return nil
 }

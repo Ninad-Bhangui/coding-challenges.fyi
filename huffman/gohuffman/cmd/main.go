@@ -40,15 +40,16 @@ func main() {
 		tree := huffman.CreateTree(table)
 		encodedMap := tree.BuildEncodingMap()
 		fmt.Println(encodedMap)
+
 		huffman.WriteHeader(outputFile, table)
 		file.Seek(0, 0)
 		huffman.WriteData(file, outputFile, encodedMap)
 	} else {
-		frequency_table, err := huffman.ReadHeader(file)
+		frequency_table, charCount, err := huffman.ReadHeader(file)
 		if err != nil {
 			log.Fatal(err)
 		}
 		tree := huffman.CreateTree(frequency_table)
-		huffman.DecodeAndWriteData(file, outputFile, tree)
+		huffman.DecodeAndWriteData(file, outputFile, tree, charCount)
 	}
 }
