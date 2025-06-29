@@ -85,9 +85,6 @@ func (t Tree) BuildEncodingMap() map[rune]string {
 func (t Tree) walk(node BaseNode, path string, m map[rune]string) {
 	if node.IsLeaf() {
 		leaf := node.(*LeafNode)
-		if path == "" {
-			path = "0"
-		}
 		m[leaf.Element] = path
 		return
 	}
@@ -215,6 +212,16 @@ func DecodeAndWriteData(reader io.Reader, writer io.Writer, tree Tree, charCount
 	decodedCount := 0
 
 	for decodedCount < charCount {
+		if currentNode.IsLeaf() {
+			node := currentNode.(*LeafNode)
+			runebyte := make([]byte, utf8.MaxRune)
+			n := utf8.EncodeRune(runebyte, node.Element)
+			writer.Write(runebyte[:n])
+			currentNode = tree.Root
+			decodedCount++
+			continue
+		}
+
 		bit, err := r.ReadBit()
 		if err != nil {
 			if err == io.EOF {
@@ -223,22 +230,11 @@ func DecodeAndWriteData(reader io.Reader, writer io.Writer, tree Tree, charCount
 			return err
 		}
 
-		if !currentNode.IsLeaf() {
-			node := currentNode.(*InternalNode)
-			if bit {
-				currentNode = node.Right
-			} else {
-				currentNode = node.Left
-			}
-		}
-
-		if currentNode.IsLeaf() {
-			node := currentNode.(*LeafNode)
-			runebyte := make([]byte, utf8.MaxRune)
-			n := utf8.EncodeRune(runebyte, node.Element)
-			writer.Write(runebyte[:n])
-			currentNode = tree.Root
-			decodedCount++
+		node := currentNode.(*InternalNode)
+		if bit {
+			currentNode = node.Right
+		} else {
+			currentNode = node.Left
 		}
 	}
 
