@@ -194,8 +194,8 @@ func WriteData(reader io.Reader, writer io.Writer, encodedMap map[rune]string) e
 	// Collect all bits into one string
 	for scanner.Scan() {
 		text := scanner.Text()
-		rune_value := []rune(text)[0]
-		if code, ok := encodedMap[rune_value]; ok {
+		runeValue := []rune(text)[0]
+		if code, ok := encodedMap[runeValue]; ok {
 			err := bw.WriteBitsFromString(code)
 			if err != nil {
 				return err

@@ -17,6 +17,7 @@ func main() {
 
 	if *filearg == "" || (*actionarg != "encode" && *actionarg != "decode") || *outputarg == "" {
 		flag.Usage()
+		os.Exit(1)
 	}
 	filepath := *filearg
 	fmt.Println("Got filepath: ", filepath)
