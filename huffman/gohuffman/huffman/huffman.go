@@ -16,6 +16,8 @@ type FreqTable map[rune]int
 type BaseNode interface {
 	IsLeaf() bool
 	Priority() int
+	Less(other priorityqueue.Item) bool
+	order() int
 }
 
 type LeafNode struct {
@@ -31,6 +33,18 @@ func (n *LeafNode) Priority() int {
 	return n.priority
 }
 
+func (n *LeafNode) Less(other priorityqueue.Item) bool {
+	otherNode := other.(BaseNode)
+	if n.Priority() == otherNode.Priority() {
+		return n.order() < otherNode.order()
+	}
+	return n.Priority() < otherNode.Priority()
+}
+
+func (n *LeafNode) order() int {
+	return int(n.Element)
+}
+
 type InternalNode struct {
 	Left  BaseNode
 	Right BaseNode
@@ -42,6 +56,20 @@ func (n *InternalNode) IsLeaf() bool {
 
 func (n *InternalNode) Priority() int {
 	return n.Left.Priority() + n.Right.Priority()
+}
+
+func (n *InternalNode) Less(other priorityqueue.Item) bool {
+	otherNode := other.(BaseNode)
+	if n.Priority() == otherNode.Priority() {
+		return n.order() < otherNode.order()
+	}
+	return n.Priority() < otherNode.Priority()
+}
+
+func (n *InternalNode) order() int {
+	l := n.Left.order()
+	r := n.Right.order()
+	return max(l, r)
 }
 
 type Tree struct {
@@ -57,6 +85,9 @@ func (t Tree) BuildEncodingMap() map[rune]string {
 func (t Tree) walk(node BaseNode, path string, m map[rune]string) {
 	if node.IsLeaf() {
 		leaf := node.(*LeafNode)
+		if path == "" {
+			path = "0"
+		}
 		m[leaf.Element] = path
 		return
 	}

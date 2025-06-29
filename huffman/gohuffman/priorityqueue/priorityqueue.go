@@ -4,6 +4,7 @@ import "container/heap"
 
 type Item interface {
 	Priority() int
+	Less(other Item) bool
 }
 
 type Queue[T Item] struct {
@@ -19,7 +20,7 @@ func (pq Queue[T]) Len() int {
 }
 
 func (pq Queue[T]) Less(i, j int) bool {
-	return pq.items[i].Priority() < pq.items[j].Priority()
+	return pq.items[i].Less(pq.items[j])
 }
 
 func (pq Queue[T]) Swap(i, j int) {
