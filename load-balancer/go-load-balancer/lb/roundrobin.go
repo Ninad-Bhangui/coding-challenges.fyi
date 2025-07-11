@@ -7,14 +7,24 @@ import (
 	"sync"
 )
 
+type ServerDetail struct {
+	url     string
+	healthy bool
+}
+
 type RoundRobinLB struct {
-	serverUrls         []string
+	serverUrls         []ServerDetail
 	currentServerIndex int
 	mu                 sync.Mutex
 }
 
-func NewRoundRobinLb(serverUrls []string) RoundRobinLB {
-	log.Printf("INFO: Initializing Round Robin Load Balancer with %d servers: %v", len(serverUrls), serverUrls)
+func NewRoundRobinLb(urls []string) RoundRobinLB {
+	log.Printf("INFO: Initializing Round Robin Load Balancer with %d servers: %v", len(urls), urls)
+	serverUrls := make([]ServerDetail, 0, len(urls))
+	for _, url := range urls {
+		serverUrls = append(serverUrls, ServerDetail{url: url, healthy: true})
+
+	}
 	return RoundRobinLB{
 		serverUrls:         serverUrls,
 		currentServerIndex: 0,
@@ -22,15 +32,30 @@ func NewRoundRobinLb(serverUrls []string) RoundRobinLB {
 
 }
 
+// func (lb *RoundRobinLB) healthCheck() {
+// 	for i, url := range lb.serverUrls {
+//
+// 	}
+// }
+//
+// func (lb *RoundRobinLB) healthCheckUrl(index int) {
+// 	url := lb.serverUrls[index]
+// 	res, err := http.Get(url)
+// 	if err != nil {
+//
+// 	}
+//
+// }
+
 func (lb *RoundRobinLB) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	lb.mu.Lock()
 	serverUrl := lb.serverUrls[lb.currentServerIndex]
 	lb.currentServerIndex = (lb.currentServerIndex + 1) % len(lb.serverUrls)
-	log.Printf("DEBUG: Routing request %s %s to server %s (index: %d)", req.Method, req.URL.Path, serverUrl, lb.currentServerIndex)
+	log.Printf("DEBUG: Routing request %s %s to server %s (index: %d)", req.Method, req.URL.Path, serverUrl.url, lb.currentServerIndex)
 	lb.mu.Unlock()
-	err := lb.serve(w, req, serverUrl)
+	err := lb.serve(w, req, serverUrl.url)
 	if err != nil {
-		log.Printf("ERROR: Failed to serve request to %s: %v", serverUrl, err)
+		log.Printf("ERROR: Failed to serve request to %s: %v", serverUrl.url, err)
 		w.WriteHeader(http.StatusNotFound)
 		io.WriteString(w, "Something went wrong")
 	}
