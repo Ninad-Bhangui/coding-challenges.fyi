@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 )
 
 type ServerDetail struct {
@@ -13,43 +14,85 @@ type ServerDetail struct {
 }
 
 type RoundRobinLB struct {
-	serverUrls         []ServerDetail
-	currentServerIndex int
-	mu                 sync.Mutex
+	serverUrls          []ServerDetail
+	currentServerIndex  int
+	healthCheckInterval time.Duration
+	mu                  sync.Mutex
 }
 
-func NewRoundRobinLb(urls []string) RoundRobinLB {
+func NewRoundRobinLb(urls []string, healthCheckInterval time.Duration) RoundRobinLB {
 	log.Printf("INFO: Initializing Round Robin Load Balancer with %d servers: %v", len(urls), urls)
 	serverUrls := make([]ServerDetail, 0, len(urls))
 	for _, url := range urls {
 		serverUrls = append(serverUrls, ServerDetail{url: url, healthy: true})
 
 	}
-	return RoundRobinLB{
-		serverUrls:         serverUrls,
-		currentServerIndex: 0,
+	lb := RoundRobinLB{
+		serverUrls:          serverUrls,
+		healthCheckInterval: healthCheckInterval,
+		currentServerIndex:  0,
 	}
+	go lb.healthCheck()
+	return lb
 
 }
 
-// func (lb *RoundRobinLB) healthCheck() {
-// 	for i, url := range lb.serverUrls {
-//
-// 	}
-// }
-//
-// func (lb *RoundRobinLB) healthCheckUrl(index int) {
-// 	url := lb.serverUrls[index]
-// 	res, err := http.Get(url)
-// 	if err != nil {
-//
-// 	}
-//
-// }
+func (lb *RoundRobinLB) getHealthyServers() []ServerDetail {
+	healthyServers := make([]ServerDetail, 0, len(lb.serverUrls))
+	for _, server := range lb.serverUrls {
+		if server.healthy {
+			healthyServers = append(healthyServers, server)
+
+		}
+	}
+	return healthyServers
+}
+func (lb *RoundRobinLB) healthCheck() {
+	var wg sync.WaitGroup
+	for {
+
+		for i, _ := range lb.serverUrls {
+			go func() {
+				lb.healthCheckUrl(i)
+				wg.Add(1)
+			}()
+
+		}
+		time.Sleep(lb.healthCheckInterval)
+		wg.Wait()
+	}
+}
+
+func (lb *RoundRobinLB) healthCheckUrl(index int) {
+	serverUrl := lb.serverUrls[index]
+	res, err := http.Get(serverUrl.url)
+	if err != nil {
+		serverUrl.healthy = false
+		log.Printf("DEBUG: %s is unhealthy due to error: %s", serverUrl.url, err)
+		return
+	}
+	if res.StatusCode != http.StatusOK {
+		serverUrl.healthy = false
+		return
+	}
+	serverUrl.healthy = true
+	return
+
+}
 
 func (lb *RoundRobinLB) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	lb.mu.Lock()
-	serverUrl := lb.serverUrls[lb.currentServerIndex]
+	healthyServers := lb.getHealthyServers()
+	if len(healthyServers) == 0 {
+		log.Printf("ERROR: no healthy servers available")
+		w.WriteHeader(http.StatusBadGateway) //TODO: Check if right status code
+		io.WriteString(w, "Sorry, no healthy servers available")
+		return
+	}
+	if len(healthyServers) <= lb.currentServerIndex {
+		lb.currentServerIndex = 0 //TODO: Currently marking to 0 if the next relevant server no longer fits in healthy server list. What to do here?
+	}
+	serverUrl := healthyServers[lb.currentServerIndex]
 	lb.currentServerIndex = (lb.currentServerIndex + 1) % len(lb.serverUrls)
 	log.Printf("DEBUG: Routing request %s %s to server %s (index: %d)", req.Method, req.URL.Path, serverUrl.url, lb.currentServerIndex)
 	lb.mu.Unlock()

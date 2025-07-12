@@ -6,6 +6,7 @@ import (
 	"load-balancer/lb"
 	"log"
 	"net/http"
+	"time"
 )
 
 type arrayFlags []string
@@ -30,7 +31,7 @@ func main() {
 		return
 	}
 	log.Printf("INFO: Parsed %d server URLs from command line", len(serverUrls))
-	lb := lb.NewRoundRobinLb(serverUrls)
+	lb := lb.NewRoundRobinLb(serverUrls, 10*time.Second)
 	s := &http.Server{
 		Addr:    ":8080",
 		Handler: &lb,
