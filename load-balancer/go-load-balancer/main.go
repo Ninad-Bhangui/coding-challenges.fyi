@@ -34,8 +34,6 @@ func main() {
 	lb := lb.NewRoundRobinLb(serverUrls, 10*time.Second)
 	s := &http.Server{
 		Addr:    ":8080",
-		// FIX #6: Use lb directly (pointer) instead of &lb (pointer to pointer)
-		// NewRoundRobinLb now returns *RoundRobinLB instead of RoundRobinLB
 		Handler: lb,
 	}
 	log.Printf("INFO: Starting HTTP server on port 8080")

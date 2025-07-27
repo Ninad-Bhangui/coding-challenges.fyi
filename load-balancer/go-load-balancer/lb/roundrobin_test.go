@@ -17,7 +17,7 @@ func TestRoundRobinLB(t *testing.T) {
 	defer backend1.Close()
 	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		fmt.Fprintf(w, "hello from backend1")
+		fmt.Fprintf(w, "hello from backend2")
 	}))
 	defer backend2.Close()
 
@@ -42,8 +42,8 @@ func TestRoundRobinLB(t *testing.T) {
 	if rr2.Code != 200 {
 		t.Errorf("Expected 200, got %d", rr2.Code)
 	}
-	if rr2.Body.String() != "hello from backend1" {
-		t.Errorf("Expected backend1, got %s", rr2.Body.String())
+	if rr2.Body.String() != "hello from backend2" {
+		t.Errorf("Expected backend2, got %s", rr2.Body.String())
 	}
 
 }
