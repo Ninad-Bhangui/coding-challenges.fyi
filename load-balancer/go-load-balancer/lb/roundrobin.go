@@ -18,6 +18,7 @@ type RoundRobinLB struct {
 	currentServerIndex  int
 	healthCheckInterval time.Duration
 	mu                  sync.Mutex
+	client              *http.Client
 }
 
 func NewRoundRobinLb(urls []string, healthCheckInterval time.Duration) *RoundRobinLB {
@@ -31,6 +32,7 @@ func NewRoundRobinLb(urls []string, healthCheckInterval time.Duration) *RoundRob
 		healthCheckInterval: healthCheckInterval,
 		currentServerIndex:  0,
 	}
+	lb.client = &http.Client{}
 	go lb.healthCheck()
 	return lb
 }
@@ -68,7 +70,7 @@ func (lb *RoundRobinLB) healthCheck() {
 
 func (lb *RoundRobinLB) healthCheckUrl(index int) {
 	serverUrl := lb.serverUrls[index].url
-	res, err := http.Get(serverUrl)
+	res, err := lb.client.Get(serverUrl)
 
 	lb.mu.Lock()
 	defer lb.mu.Unlock()
@@ -121,7 +123,7 @@ func (lb *RoundRobinLB) serve(w http.ResponseWriter, req *http.Request, url stri
 	}
 	lbReq.Header = req.Header
 	slog.Debug("Sending request to backend server", "url", url)
-	res, err := http.DefaultClient.Do(lbReq)
+	res, err := lb.client.Do(lbReq)
 	if err != nil {
 		slog.Error("Failed to connect to backend server", "url", url, "error", err)
 		http.Error(w, "Could not connect", http.StatusBadGateway)
