@@ -2,7 +2,7 @@ package lb
 
 import (
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -21,7 +21,7 @@ type RoundRobinLB struct {
 }
 
 func NewRoundRobinLb(urls []string, healthCheckInterval time.Duration) *RoundRobinLB {
-	log.Printf("INFO: Initializing Round Robin Load Balancer with %d servers: %v", len(urls), urls)
+	slog.Info("Initializing Round Robin Load Balancer", "server_count", len(urls), "urls", urls)
 	serverUrls := make([]ServerDetail, 0, len(urls))
 	for _, url := range urls {
 		serverUrls = append(serverUrls, ServerDetail{url: url, healthy: true})
@@ -75,7 +75,7 @@ func (lb *RoundRobinLB) healthCheckUrl(index int) {
 
 	if err != nil {
 		lb.serverUrls[index].healthy = false
-		log.Printf("DEBUG: %s is unhealthy due to error: %s", serverUrl, err)
+		slog.Debug("Server health check failed", "url", serverUrl, "error", err)
 		return
 	}
 
@@ -92,43 +92,43 @@ func (lb *RoundRobinLB) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	healthyServers := lb.getHealthyServersUnlocked()
 	if len(healthyServers) == 0 {
 		lb.mu.Unlock()
-		log.Printf("ERROR: no healthy servers available")
-		w.WriteHeader(http.StatusBadGateway) //TODO: Check if right status code
+		slog.Error("No healthy servers available")
+		w.WriteHeader(http.StatusServiceUnavailable)
 		io.WriteString(w, "Sorry, no healthy servers available")
 		return
 	}
 	if len(healthyServers) <= lb.currentServerIndex {
-		lb.currentServerIndex = 0 //TODO: Currently marking to 0 if the next relevant server no longer fits in healthy server list. What to do here?
+		lb.currentServerIndex = 0
 	}
 	serverUrl := healthyServers[lb.currentServerIndex]
 	lb.currentServerIndex = (lb.currentServerIndex + 1) % len(healthyServers)
-	log.Printf("DEBUG: Routing request %s %s to server %s (index: %d)", req.Method, req.URL.Path, serverUrl.url, lb.currentServerIndex)
+	slog.Debug("Routing request", "method", req.Method, "path", req.URL.Path, "server", serverUrl.url, "index", lb.currentServerIndex)
 	lb.mu.Unlock()
 	err := lb.serve(w, req, serverUrl.url)
 	if err != nil {
-		log.Printf("ERROR: Failed to serve request to %s: %v", serverUrl.url, err)
+		slog.Error("Failed to serve request", "server", serverUrl.url, "error", err)
 		w.WriteHeader(http.StatusNotFound)
 		io.WriteString(w, "Something went wrong")
 	}
 }
 
 func (lb *RoundRobinLB) serve(w http.ResponseWriter, req *http.Request, url string) error {
-	log.Printf("DEBUG: Creating proxy request to %s", url)
+	slog.Debug("Creating proxy request", "url", url)
 	lbReq, err := http.NewRequest(req.Method, url, req.Body)
 	if err != nil {
-		log.Printf("ERROR: Failed to create proxy request: %v", err)
+		slog.Error("Failed to create proxy request", "error", err)
 		return err
 	}
 	lbReq.Header = req.Header
-	log.Printf("DEBUG: Sending request to backend server %s", url)
+	slog.Debug("Sending request to backend server", "url", url)
 	res, err := http.DefaultClient.Do(lbReq)
 	if err != nil {
-		log.Printf("ERROR: Failed to connect to backend server %s: %v", url, err)
+		slog.Error("Failed to connect to backend server", "url", url, "error", err)
 		http.Error(w, "Could not connect", http.StatusBadGateway)
 		return nil
 	}
 	defer res.Body.Close()
-	log.Printf("DEBUG: Received response from %s with status %d", url, res.StatusCode)
+	slog.Debug("Received response from backend", "url", url, "status", res.StatusCode)
 	for key, values := range res.Header {
 		for _, value := range values {
 			w.Header().Add(key, value)

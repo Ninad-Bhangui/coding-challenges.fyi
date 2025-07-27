@@ -4,8 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"load-balancer/lb"
-	"log"
+	"log/slog"
 	"net/http"
+	"net/url"
+	"os"
 	"time"
 )
 
@@ -21,22 +23,43 @@ func (i *arrayFlags) Set(value string) error {
 }
 
 func main() {
-	log.Printf("INFO: Starting Go Load Balancer")
+	// Configure structured logging
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
+	
+	slog.Info("Starting Go Load Balancer")
 	var serverUrls arrayFlags
 	flag.Var(&serverUrls, "url", "URLs of server")
 	flag.Parse()
 	if len(serverUrls) == 0 {
-		log.Printf("ERROR: No server URLs provided")
+		slog.Error("No server URLs provided")
 		flag.Usage()
 		return
 	}
-	log.Printf("INFO: Parsed %d server URLs from command line", len(serverUrls))
+	
+	// Validate URLs
+	for _, urlStr := range serverUrls {
+		if _, err := url.Parse(urlStr); err != nil {
+			slog.Error("Invalid URL", "url", urlStr, "error", err)
+			return
+		}
+		if parsedURL, _ := url.Parse(urlStr); parsedURL.Scheme == "" || parsedURL.Host == "" {
+			slog.Error("URL must include scheme (http/https) and host", "url", urlStr)
+			return
+		}
+	}
+	
+	slog.Info("Parsed server URLs from command line", "count", len(serverUrls), "urls", serverUrls)
 	lb := lb.NewRoundRobinLb(serverUrls, 10*time.Second)
 	s := &http.Server{
 		Addr:    ":8080",
 		Handler: lb,
 	}
-	log.Printf("INFO: Starting HTTP server on port 8080")
+	slog.Info("Starting HTTP server", "port", 8080)
 	fmt.Printf("Listening on port 8080")
-	log.Fatal(s.ListenAndServe())
+	if err := s.ListenAndServe(); err != nil {
+		slog.Error("Failed to start HTTP server", "error", err)
+	}
 }
